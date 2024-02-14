@@ -26,13 +26,18 @@ type AstNode struct {
 	Result            int64 `json:"result"`
 }
 
-// ноды будем скармливать агентам
-var nodes = []AstNode{
-	{Astnode_id: 1, Task_id: 1, Operand1: 1, Operand2: 1, Operator: "+", Operator_delay: 30},
-	{Astnode_id: 2, Task_id: 1, Operand1: 2, Operand2: 2, Operator: "*", Operator_delay: 15},
-	{Astnode_id: 3, Task_id: 1, Operand1: 3, Operand2: 3, Operator: "-", Operator_delay: 10},
-	{Astnode_id: 4, Task_id: 1, Operand1: 4, Operand2: 4, Operator: "/", Operator_delay: 15},
+type Agent struct {
+	AgentId    string `json:"agent_id"`
+	Status     string `json:"status"`
+	TotalProcs int    `json:"total_procs"`
+	IdleProcs  int    `json:"idle_procs"`
+	FirstSeen  time.Time
+	LastSeen   time.Time
 }
+
+var router = gin.Default()
+var tasks []*task.Task = make([]*task.Task, 0)
+var Agents map[string]Agent = make(map[string]Agent)
 
 /*
 // получить список нод
@@ -61,36 +66,59 @@ func postNode(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, newNode)
 }
 */
-type AgentStatus struct {
-	AgentId    string `json:"agent_id"`
-	Status     string `json:"status"`
-	TotalProcs int    `json:"total_procs"`
-	IdleProcs  int    `json:"idle_procs"`
+
+func getAgents(c *gin.Context) {
+	c.HTML(
+		200,
+		"agents.html",
+		gin.H{
+			"title":  "Agents",
+			"Agents": Agents,
+		},
+	)
+
 }
 
-var this int
+func getTasks(c *gin.Context) {
+	c.HTML(
+		200,
+		"tasks.html",
+		gin.H{
+			"title": "Tasks",
+			"Tasks": tasks,
+		},
+	)
+
+}
 
 func GiveMeOperation(c *gin.Context) {
-	var agentStatus AgentStatus
-	if err := c.BindJSON(&agentStatus); err != nil {
+	var agent Agent
+	if err := c.BindJSON(&agent); err != nil {
 		fmt.Printf("Error JSON %+v", err)
 		return
 	}
-	if agentStatus.Status == "busy" {
-		fmt.Printf("agent busy %+v", agentStatus)
+	a, found := Agents[agent.AgentId]
+	if found {
+		// сохраняем старое значение
+		agent.FirstSeen = a.FirstSeen
 	} else {
-		/*
-			// ноды скармливаем с первой до последней и снова
-			if this == len(nodes) { this = 0}
-			c.IndentedJSON(http.StatusOK, nodes[this])
-			fmt.Printf("agent %v received operation %+v", agentStatus.AgentId, nodes[this])
-			this++
-		*/
+		// инициализиуем
+		agent.FirstSeen = time.Now()
+	}
+	agent.LastSeen = time.Now()
+	Agents[agent.AgentId] = agent
+
+	if agent.Status == "busy" {
+		fmt.Printf("agent busy %+v", agent)
+	} else {
 		for _, t := range tasks {
-			if n, ok := t.GetWaitingNodeAndSetProcess(agentStatus.AgentId); ok {
+			if n, ok := t.GetWaitingNodeAndSetProcess(agent.AgentId); ok {
 				node := AstNode{Astnode_id: n.Astnode_id, Task_id: n.Task_id, Operand1: n.Operand1, Operand2: n.Operand2, Operator: n.Operator, Operator_delay: n.Operator_delay}
 				c.IndentedJSON(http.StatusOK, node)
-				fmt.Printf("agent %v received operation %+v", agentStatus.AgentId, node)
+				fmt.Printf("agent %v received operation %+v", agent.AgentId, node)
+				// дали агенту операцию, значит у него стало на 1 свободный процесс меньше
+				agent.IdleProcs --
+				Agents[agent.AgentId] = agent
 				return
 			}
 		}
@@ -121,8 +149,6 @@ type ExtExpr struct {
 	Expr   string `json:"expr"`
 }
 
-var tasks []*task.Task = make([]*task.Task, 0)
-
 func CalculateExpression(c *gin.Context) {
 	var extexpr ExtExpr
 	if err := c.BindJSON(&extexpr); err != nil {
@@ -147,9 +173,11 @@ func initRoutes() {
 	router.POST("/take-operation-result", TakeOperationResult)
 	router.POST("/calculate-expression", CalculateExpression)
 
-}
+	router.GET("/agents", getAgents)
+	router.GET("/tasks", getTasks)
+	router.GET("/", getTasks)
 
-var router = gin.Default()
+}
 
 func main() {
 	router.LoadHTMLGlob("templates/*")

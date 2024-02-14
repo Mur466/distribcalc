@@ -1,0 +1,32 @@
+<!--embedding the header file-->
+{{ template "header.html" .}}
+
+
+
+{{if .Agents}}
+<div class="d-flex flex-column flex-md-row p-4 gap-4 py-md-5 align-items-center justify-content-center">
+  <div class="list-group">
+    {{range .Agents}}
+    <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true">
+      <img src="https://github.com/twbs.png" alt="twbs" width="32" height="32" class="rounded-circle flex-shrink-0">
+      <div class="d-flex gap-2 w-100 justify-content-between">
+        <div>
+          <h6 class="mb-0">{{.AgentId}} </h6>
+          <p class="mb-0 opacity-75">Workers total: {{.TotalProcs}}, idle {{.IdleProcs}}</p>
+          <p class="mb-0 opacity-75">Started  {{.FirstSeen}}</p>
+          <p class="mb-0 opacity-75">Last seen  {{.LastSeen}}</p>
+        </div>
+        <small class="opacity-50 text-nowrap">{{.Status}}</small>
+      </div>
+    </a>
+    {{end}}
+  </div>
+</div>
+{{else}}
+  <p>List is empty</p>
+{{end}}
+
+
+
+<!--embedding the footer file-->
+{{ template "footer.html" .}}

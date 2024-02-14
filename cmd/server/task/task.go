@@ -33,25 +33,28 @@ type AstNode struct {
 
 type NodeStatusInfo struct {
 	Agent_id string
-	Result int64
+	Result   int64
 }
 
 type Task struct {
-	Task_id   int
-	Ext_id    string // внешний идентификатор для идемпотентности
-	Expr      string
-	Result    int64
-	Status    string     // (parsing, error, ready, in progress, done)
-	Message   string     // текстовое сообщение с результатом/ошибкой
-	TreeSlice []*AstNode // Дерево Abstract Syntax Tree
-	mx		sync.Mutex
+	Task_id      int
+	Ext_id       string // внешний идентификатор для идемпотентности
+	Expr         string
+	Result       int64
+	Status       string     // (parsing, error, ready, in progress, done)
+	Message      string     // текстовое сообщение с результатом/ошибкой
+	TreeSlice    []*AstNode // Дерево Abstract Syntax Tree
+	mx           sync.Mutex
+	DateCreated  time.Time
+	DateFinished time.Time
 }
 
 var task_count int
+
 func NewTask(expr string, ext_id string) *Task {
 	task_count++
-	t := &Task{Task_id: task_count, Expr: expr, Ext_id: ext_id, TreeSlice: make([]*AstNode, 0)}
-	t.SetStatus("parsing",TaskStatusInfo{})
+	t := &Task{Task_id: task_count, Expr: expr, Ext_id: ext_id, TreeSlice: make([]*AstNode, 0), DateCreated: time.Now()}
+	t.SetStatus("parsing", TaskStatusInfo{})
 	root := &AstNode{Task_id: t.Task_id}
 	t.Add(-1, root)
 
@@ -68,7 +71,7 @@ func NewTask(expr string, ext_id string) *Task {
 		t.SetStatus("error", TaskStatusInfo{Message: err.Error()})
 		return t
 	}
-	t.SetStatus("ready",TaskStatusInfo{})
+	t.SetStatus("ready", TaskStatusInfo{})
 	return t
 }
 
@@ -140,6 +143,7 @@ func (t *Task) buildtree(parsedtree ast.Expr, parent *AstNode) error {
 	}
 	return unsup(reflect.TypeOf(parsedtree))
 }
+
 /*
 func evalX (X ast.Expr, operand *int) {
 
@@ -156,10 +160,9 @@ func NewAstNode(operand1, operand2 int, operator, status string) *AstNode {
 		Operand2: operand2,
 		Operator: operator,
 		//	Operator_delay    int
-		Status: status,
+		Status:            status,
 		Child1_astnode_id: -1,
 		Child2_astnode_id: -1,
-		
 	}
 }
 func (t *Task) Add(parent_id int, node *AstNode) *AstNode {
@@ -174,32 +177,36 @@ func (t *Task) Add(parent_id int, node *AstNode) *AstNode {
 	return node
 
 }
+
 type TaskStatusInfo struct {
-	Result int64
+	Result  int64
 	Message string
 }
 
 func (t *Task) SetStatus(status string, info TaskStatusInfo) {
-	switch status{
+	switch status {
 	default:
 		log.Printf("Invalid status. TaskId: %v, Status:%v", t.Task_id, status)
 		return
 	case "parsing", "ready", "in progress":
-		 log.Printf("New task status. TaskId: %v, Status:%v", t.Task_id, status)
-		 t.Status = status
+		log.Printf("New task status. TaskId: %v, Status:%v", t.Task_id, status)
+		t.Status = status
 	case "done":
 		t.Result = info.Result
 		log.Printf("Task complete. TaskId: %v, result: %v", t.Task_id, t.Result)
 		t.Message = fmt.Sprintf("Calculation complete. Result = %v", t.Result)
+		t.DateFinished = time.Now()
 		t.Status = "done"
 	case "error":
 		log.Printf("Task failed. TaskId: %v, error: %v", t.Task_id, info.Message)
 		t.Message = fmt.Sprintf("Calculation failed. Error = %v", info.Message)
-		t.Status = "failed"
+		t.DateFinished = time.Now()
+		t.Status = "error"
 	}
 
 	//todo db
 }
+
 /*
 func (t *Task) SetResult(result int64) {
 	t.Result = result
@@ -221,7 +228,17 @@ func (t *Task) SetFailed(message string) {
 func (t *Task) GetWaitingNodeAndSetProcess(agent_id string) (*AstNode, bool) {
 	for _, n := range t.TreeSlice {
 		if n.Status == "ready" {
-			t.SetNodeStatus(n.Astnode_id,"in progress", NodeStatusInfo{Agent_id: agent_id})
+			t.SetNodeStatus(n.Astnode_id, "in progress", NodeStatusInfo{Agent_id: agent_id})
+			done := 0
+			for _, n2 := range t.TreeSlice {
+				if n2.Status == "done" {
+					done++
+				}
+			}
+			if t.Status != "in progress" {
+				t.SetStatus("in progress", TaskStatusInfo{})
+			}
+			t.Message = fmt.Sprintf("Nodes complete %v of %v", done, len(t.TreeSlice))
 			return n, true
 		}
 	}
@@ -229,22 +246,21 @@ func (t *Task) GetWaitingNodeAndSetProcess(agent_id string) (*AstNode, bool) {
 	return nil, false
 }
 
-
 func (t *Task) SetNodeStatus(AstNodeId int, status string, info NodeStatusInfo) {
 	if AstNodeId > len(t.TreeSlice)-1 || AstNodeId < 0 {
 		log.Printf("Node id out of bounds. TaskId: %v, NodeId: %v", t.Task_id, AstNodeId)
 		return
 	}
-	switch status{
+	switch status {
 	default:
 		log.Printf("Invalid status. TaskId: %v, NodeId: %v, Status:%v", t.Task_id, AstNodeId, status)
-	case "in progress":  // передано в расчет
-		t.TreeSlice[AstNodeId].Agent_id=info.Agent_id
+	case "in progress": // передано в расчет
+		t.TreeSlice[AstNodeId].Agent_id = info.Agent_id
 	case "done": // есть результат
-		t.TreeSlice[AstNodeId].Result=int64(info.Result)
-	case "parsing", "failed", 
-		 "waiting" /*ждем результатов других выражений*/,
-		 "ready" /* оба операнда вычислены*/:
+		t.TreeSlice[AstNodeId].Result = int64(info.Result)
+	case "parsing", "failed",
+		"waiting", /*ждем результатов других выражений*/
+		"ready" /* оба операнда вычислены*/ :
 
 	}
 	t.TreeSlice[AstNodeId].Status = status
@@ -252,12 +268,12 @@ func (t *Task) SetNodeStatus(AstNodeId int, status string, info NodeStatusInfo) 
 	// todo db
 
 	// доп. обработка после сохранения в БД
-	if status == "done" {		
+	if status == "done" {
 		parent_id := t.TreeSlice[AstNodeId].Parent_astnode_id
 		if parent_id == -1 {
 			// если посчитали корневой узел, то значит выражение тоже
 			//t.SetResult(info.Result)
-			t.SetStatus("done", TaskStatusInfo{Result:info.Result})
+			t.SetStatus("done", TaskStatusInfo{Result: info.Result})
 		} else {
 			t.mx.Lock()
 			defer t.mx.Unlock()
@@ -272,16 +288,15 @@ func (t *Task) SetNodeStatus(AstNodeId int, status string, info NodeStatusInfo) 
 			// проверим, может и родителя можно считать?
 			if parent.Status == "waiting" &&
 				(parent.Child1_astnode_id == -1 || // нет дочки
-			    t.TreeSlice[parent.Child1_astnode_id].Status=="done") &&
-			    (parent.Child2_astnode_id == -1 || // нет дочки
-				t.TreeSlice[parent.Child2_astnode_id].Status=="done") {
+					t.TreeSlice[parent.Child1_astnode_id].Status == "done") &&
+				(parent.Child2_astnode_id == -1 || // нет дочки
+					t.TreeSlice[parent.Child2_astnode_id].Status == "done") {
 				// дочек нет или они посчитаны, можем считать папу
 				t.SetNodeStatus(parent_id, "ready", NodeStatusInfo{})
 			}
 		}
-	
-	}
 
+	}
 
 }
 

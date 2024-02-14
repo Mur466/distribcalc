@@ -139,6 +139,7 @@ func Worker(choper <-chan AstNode, wg *sync.WaitGroup) {
 
 func GetOperation(status string) (AstNode, bool) {
 	url := server_url + "/give-me-operation"
+
 	//url := "http://ya.ru"
 	Json := fmt.Sprintf(`{
 		"agent_id": "%v",
@@ -178,15 +179,13 @@ func TaskChecker(choper chan<- AstNode, chstop <-chan interface{}) {
 				if free_workers > 0 {
 					// набираем до упора
 					for free_workers > 0 {
-						// уменьшаем счетчик свободных
-						atomic.AddInt32(&free_workers, -1)
 						if oper, ok := GetOperation("ready"); ok {
+							// уменьшаем счетчик свободных
+							atomic.AddInt32(&free_workers, -1)
 							// тут отправить операцию воркеру
 							choper <- oper
 						} else {
-							// не дали операцию, освобождаем
-							atomic.AddInt32(&free_workers, 1)
-							// и выходим из цикла
+							// не дали операцию, выходим из цикла
 							break
 						}
 					}

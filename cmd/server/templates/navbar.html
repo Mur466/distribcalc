@@ -2,12 +2,12 @@
     <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
       <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto link-body-emphasis text-decoration-none">
         <svg class="bi me-2" width="40" height="32"><use xlink:href="#bootstrap"/></svg>
-        <span class="fs-4">{{.title}} - Simple header</span>
+        <span class="fs-4">Distributed calc by Mur466</a></span>
       </a>
 
       <ul class="nav nav-pills">
-        <li class="nav-item"><a href="/home" class="nav-link {{if (eq .title "Главная страница")}}active{{end}}">Home</a></li>
-        <li class="nav-item"><a href="/features" class="nav-link {{if (eq .title "О нас")}}active{{end}}">Features</a></li>
+        <li class="nav-item"><a href="/tasks" class="nav-link {{if (eq .title "Tasks")}}active{{end}}">Tasks</a></li>
+        <li class="nav-item"><a href="/agents" class="nav-link {{if (eq .title "Agents")}}active{{end}}">Agents</a></li>
         <li class="nav-item"><a href="/pricing" class="nav-link {{if (eq .title "Наши цены")}}active{{end}}">Pricing</a></li>
       </ul>
     </header>
