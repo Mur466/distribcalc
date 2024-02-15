@@ -2,6 +2,8 @@
 {{ template "header.html" .}}
 
 
+{{ template "newexpr.html" .}}
+
 
 {{if .Tasks}}
 <div class="d-flex flex-column flex-md-row p-4 gap-4 py-md-5 align-items-center justify-content-center">
@@ -13,7 +15,7 @@
         <div>
           <h6 class="mb-0">{{.Expr}}</h6>
           <p class="mb-0 opacity-75">{{.Message}} </p>
-          <p class="mb-0 opacity-75">Task id:  external id </p>
+          <p class="mb-0 opacity-75">Task id: "{{.Task_id}}" external id "{{.Ext_id}}"</p>
           <p class="mb-0 opacity-75">Created  {{.DateCreated}}</p>
           <p class="mb-0 opacity-75">Finished  {{.DateFinished}}</p>
         </div>

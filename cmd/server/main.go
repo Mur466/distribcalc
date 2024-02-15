@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Mur466/distribcalc/cmd/server/task"
@@ -38,34 +40,7 @@ type Agent struct {
 var router = gin.Default()
 var tasks []*task.Task = make([]*task.Task, 0)
 var Agents map[string]Agent = make(map[string]Agent)
-
-/*
-// получить список нод
-func getNodes(c *gin.Context) {
-	Nodes = task
-	c.HTML(
-		200,
-		"index.html",
-		gin.H{
-			"title": "О нас",
-		},
-	)
-
-}
-*/
-/*
-// добавить ноду
-func postNode(c *gin.Context) {
-	var newNode AstNode
-
-	if err := c.BindJSON(&newNode); err != nil {
-		return
-	}
-
-	nodes = append(nodes, newNode)
-	c.IndentedJSON(http.StatusCreated, newNode)
-}
-*/
+var Config map[string]string = make(map[string]string)
 
 func getAgents(c *gin.Context) {
 	c.HTML(
@@ -76,19 +51,59 @@ func getAgents(c *gin.Context) {
 			"Agents": Agents,
 		},
 	)
+}
 
+func pseudo_uuid() (uuid string) {
+
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	uuid = fmt.Sprintf("%04x-%04x-%04x-%04x-%04x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+
+	return
 }
 
 func getTasks(c *gin.Context) {
+
 	c.HTML(
 		200,
 		"tasks.html",
 		gin.H{
-			"title": "Tasks",
-			"Tasks": tasks,
+			"title":          "Tasks",
+			"Tasks":          tasks,
+			"NewRandomValue": pseudo_uuid(),
 		},
 	)
+}
 
+func getConfig(c *gin.Context) {
+	c.HTML(
+		200,
+		"config.html",
+		gin.H{
+			"title":  "Config",
+			"Config": Config,
+			"TTest":  Config["test"],
+		},
+	)
+}
+func ValidateDelay(v string, dflt string) string {
+	i, err := strconv.Atoi(v)
+	if v != "" && err == nil && i >= 0 {
+		return v
+	}
+	return dflt
+}
+func setConfig(c *gin.Context) {
+	Config["DelayForAdd"] = ValidateDelay(c.PostForm("DelayForAdd"), Config["DelayForAdd"])
+	Config["DelayForSub"] = ValidateDelay(c.PostForm("DelayForSub"), Config["DelayForSub"])
+	Config["DelayForMul"] = ValidateDelay(c.PostForm("DelayForMul"), Config["DelayForMul"])
+	Config["DelayForDiv"] = ValidateDelay(c.PostForm("DelayForDiv"), Config["DelayForDiv"])
+	http.Redirect(c.Writer, c.Request, "/config", http.StatusSeeOther)
 }
 
 func GiveMeOperation(c *gin.Context) {
@@ -117,7 +132,7 @@ func GiveMeOperation(c *gin.Context) {
 				c.IndentedJSON(http.StatusOK, node)
 				fmt.Printf("agent %v received operation %+v", agent.AgentId, node)
 				// дали агенту операцию, значит у него стало на 1 свободный процесс меньше
-				agent.IdleProcs --
+				agent.IdleProcs--
 				Agents[agent.AgentId] = agent
 				return
 			}
@@ -151,16 +166,32 @@ type ExtExpr struct {
 
 func CalculateExpression(c *gin.Context) {
 	var extexpr ExtExpr
-	if err := c.BindJSON(&extexpr); err != nil {
-		fmt.Printf("Error JSON %+v", err)
-		return
+	frombrowser := false
+
+	if c.PostForm("expr") != "" {
+		// вызвали из html-формы
+		extexpr.Expr = c.PostForm("expr")
+		extexpr.Ext_id = c.PostForm("ext_id")
+		frombrowser = true
+	} else {
+		// пытаемся через json
+		if err := c.BindJSON(&extexpr); err == nil {
+			fmt.Printf("Error JSON %+v", err)
+			return
+		}
 	}
+
 	t := task.NewTask(extexpr.Expr, extexpr.Ext_id)
 	tasks = append(tasks, t)
-	if t.Status == "failed" {
-		c.String(http.StatusBadRequest, fmt.Sprintf("Expression failed: %v", t.Message))
+	if frombrowser{
+		http.Redirect(c.Writer, c.Request, "/tasks", http.StatusSeeOther)
 	} else {
-		c.String(http.StatusOK, fmt.Sprintf("Expression received, task_id: %v", t.Task_id))
+		// ответим на json
+		if t.Status == "failed" {
+			c.String(http.StatusBadRequest, fmt.Sprintf("Expression failed: %v", t.Message))
+		} else {
+			c.String(http.StatusOK, fmt.Sprintf("Expression received, task_id: %v", t.Task_id))
+		}
 	}
 
 }
@@ -172,15 +203,25 @@ func initRoutes() {
 	router.POST("/give-me-operation", GiveMeOperation)
 	router.POST("/take-operation-result", TakeOperationResult)
 	router.POST("/calculate-expression", CalculateExpression)
+	router.POST("/set-config", setConfig)
 
 	router.GET("/agents", getAgents)
 	router.GET("/tasks", getTasks)
+	router.GET("/config", getConfig)
 	router.GET("/", getTasks)
 
 }
 
+func initConfig() {
+	Config["DelayForAdd"] = "10"
+	Config["DelayForSub"] = "12"
+	Config["DelayForMul"] = "15"
+	Config["DelayForDiv"] = "20"
+}
+
 func main() {
 	router.LoadHTMLGlob("templates/*")
+	initConfig()
 	initRoutes()
 	router.Run("localhost:8080")
 }

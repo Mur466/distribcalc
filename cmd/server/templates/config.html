@@ -1,0 +1,34 @@
+<!--embedding the header file-->
+{{ template "header.html" .}}
+
+    <form action="/set-config" method="POST">
+        <div class="form-group">
+            <label for=" ">Duration of +</label>
+            <input type="number" class="form-control" name="DelayForAdd" value={{.Config.DelayForAdd}}>
+            <small id="addHelp" class="form-text text-muted">Duration of addition operation in seconds.</small>
+            <p></p>
+        </div>
+        <div class="form-group">
+            <label for=" ">Duration of -</label>
+            <input type="number" class="form-control" name="DelayForSub" value={{.Config.DelayForSub}}>
+            <small id="addHelp" class="form-text text-muted">Duration of substration operation in seconds.</small>
+            <p></p>
+        </div>
+        <div class="form-group">
+            <label for=" ">Duration of *</label>
+            <input type="number" class="form-control" name="DelayForMul" value={{.Config.DelayForMul}}>
+            <small id="addHelp" class="form-text text-muted">Duration of multiplication operation in seconds.</small>
+            <p></p>
+        </div>
+        <div class="form-group">
+            <label for=" ">Duration of /</label>
+            <input type="number" class="form-control" name="DelayForDiv" value={{.Config.DelayForDiv}}>
+            <small id="addHelp" class="form-text text-muted">Duration of division operation in seconds.</small>
+            <p></p>
+        </div>
+        <a href="/config">
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </a>
+    </form>
+<!--embedding the footer file-->
+{{ template "footer.html" .}}

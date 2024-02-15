@@ -18,7 +18,7 @@ type AstNode struct {
 	Parent_astnode_id int
 	Child1_astnode_id int
 	Child2_astnode_id int
-	Tree              *Task
+	//Tree              *Task
 	Operand1          int    `json:"operand1"`
 	Operand2          int    `json:"operand2"`
 	Operator          string `json:"operator"`
@@ -170,7 +170,7 @@ func (t *Task) Add(parent_id int, node *AstNode) *AstNode {
 	node.Date_ins = time.Now()
 	node.Parent_astnode_id = parent_id
 	node.Task_id = t.Task_id
-	node.Tree = t
+	//node.Tree = t
 	node.Child1_astnode_id = -1
 	node.Child2_astnode_id = -1
 	t.TreeSlice = append(t.TreeSlice, node)
@@ -304,6 +304,8 @@ func (t *Task) SetNodeStatus(AstNodeId int, status string, info NodeStatusInfo) 
 func GetOperatorDelay(operator string) int {
 	switch operator {
 	case "+":
+		//r, ok = strconv.Atoi(main.Config["DelayForAdd"])
+		//if ok { return r}
 		return 10
 	case "-":
 		return 20
