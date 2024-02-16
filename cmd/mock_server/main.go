@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Mur466/distribcalc/cmd/server/task"
+	"github.com/Mur466/distribcalc/internal/task"
 	"github.com/gin-gonic/gin"
 )
 

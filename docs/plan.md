@@ -143,13 +143,22 @@ API
 =======
 Фронтэнд на ГО https://habr.com/ru/articles/475390/
 Шаблонизатор https://golangify.com/template-actions-and-functions
+супердока по gin  https://www.squash.io/optimizing-gin-in-golang-project-structuring-error-handling-and-testing/
+
+
+логирование
+zap для gin https://pkg.go.dev/github.com/gin-contrib/zap#section-readme
 
 Вычислитель арифметических выражений на ГО https://rosettacode.org/wiki/Arithmetic_Evaluator/Go
 
 Работа с постгресс на ГО https://metanit.com/go/tutorial/10.3.php
 https://golangdocs.com/golang-postgresql-example
 https://hevodata.com/learn/golang-postgres/
-https://henvic.dev/posts/go-postgres/
+pgx https://henvic.dev/posts/go-postgres/
+postgress json fields https://www.alexedwards.net/blog/using-postgresql-jsonb
+
+
+
 
 Работа с конфигурацией
 https://zetcode.com/golang/flag/
@@ -162,6 +171,8 @@ https://go.dev/doc/tutorial/web-service-gin
 Пакеты и модули, импорт и структура проекта
 https://www.alexedwards.net/blog/an-introduction-to-packages-imports-and-modules
 
+Docker
+https://dev.to/divrhino/build-a-rest-api-from-scratch-with-go-and-docker-3o54
 
 разбейте на мелкие части, например вот такой подход (можно много других придумать):
 1. как написать простенький CRUD - чтобы был http сервер, html шаблоны и юзер мог делать пост запрос через форму

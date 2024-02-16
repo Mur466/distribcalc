@@ -49,7 +49,18 @@ type Task struct {
 	DateFinished time.Time
 }
 
+var Tasks []*Task = make([]*Task, 0)
+var Config map[string]string = make(map[string]string)
+
 var task_count int
+
+func InitConfig() {
+	Config["DelayForAdd"] = "10"
+	Config["DelayForSub"] = "12"
+	Config["DelayForMul"] = "15"
+	Config["DelayForDiv"] = "20"
+}
+
 
 func NewTask(expr string, ext_id string) *Task {
 	task_count++
@@ -60,14 +71,12 @@ func NewTask(expr string, ext_id string) *Task {
 
 	parsedtree, err := parser.ParseExpr(expr)
 	if err != nil {
-		//t.SetFailed(err.Error())
 		t.SetStatus("error", TaskStatusInfo{Message: err.Error()})
 		return t
 	}
 
 	err = t.buildtree(parsedtree, t.TreeSlice[0])
 	if err != nil {
-		//t.SetFailed(err.Error())
 		t.SetStatus("error", TaskStatusInfo{Message: err.Error()})
 		return t
 	}
@@ -144,11 +153,7 @@ func (t *Task) buildtree(parsedtree ast.Expr, parent *AstNode) error {
 	return unsup(reflect.TypeOf(parsedtree))
 }
 
-/*
-func evalX (X ast.Expr, operand *int) {
 
-}
-*/
 func unsup(i interface{}) error {
 
 	return fmt.Errorf("%v unsupported", i)
@@ -207,22 +212,6 @@ func (t *Task) SetStatus(status string, info TaskStatusInfo) {
 	//todo db
 }
 
-/*
-func (t *Task) SetResult(result int64) {
-	t.Result = result
-	log.Printf("Task complete. TaskId: %v, result: %v", t.Task_id, result)
-	t.Message = fmt.Sprintf("Calculation complete. Result = %v", result)
-	t.Status = "done"
-	// todo db
-}
-
-func (t *Task) SetFailed(message string) {
-	log.Printf("Task failed. TaskId: %v, error: %v", t.Task_id, message)
-	t.Message = fmt.Sprintf("Calculation failed. Error = %v", message)
-	t.Status = "failed"
-	// todo db
-}
-*/
 
 // атомарно выбираем ожидающую операцию и переводим ее в процесс
 func (t *Task) GetWaitingNodeAndSetProcess(agent_id string) (*AstNode, bool) {

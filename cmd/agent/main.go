@@ -14,6 +14,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Mur466/distribcalc/internal/task"
+
 )
 
 type Config struct {
@@ -83,6 +86,7 @@ func PostJsonToUrl(url string, jsonData []byte) (StatusCode int, body []byte, er
 
 }
 
+/*
 type AstNode struct {
 	Astnode_id int `json:"astnode_id"`
 	Task_id    int `json:"task_id"`
@@ -98,8 +102,8 @@ type AstNode struct {
 	//    - agent_id
 	Result int64 `json:"result"`
 }
-
-func Worker(choper <-chan AstNode, wg *sync.WaitGroup) {
+*/
+func Worker(choper <-chan task.AstNode, wg *sync.WaitGroup) {
 	defer wg.Done()
 	url := server_url + "/take-operation-result"
 
@@ -137,10 +141,9 @@ func Worker(choper <-chan AstNode, wg *sync.WaitGroup) {
 	}
 }
 
-func GetOperation(status string) (AstNode, bool) {
+func GetOperation(status string) (task.AstNode, bool) {
 	url := server_url + "/give-me-operation"
 
-	//url := "http://ya.ru"
 	Json := fmt.Sprintf(`{
 		"agent_id": "%v",
 		"status": "%v",
@@ -150,27 +153,27 @@ func GetOperation(status string) (AstNode, bool) {
 	StatusCode, TaskData, err := PostJsonToUrl(url, []byte(Json))
 	if err != nil {
 		log.Printf("Request on %v returned error %v", url, err.Error())
-		return AstNode{}, false
+		return task.AstNode{}, false
 	}
 	if status == "busy" {
 		// выполнили "пульс", а операцию не собирались брать, поэтому можем дальше не читать
-		return AstNode{}, false
+		return task.AstNode{}, false
 	}
 	if StatusCode != http.StatusOK {
 		// задания не получили
-		return AstNode{}, false
+		return task.AstNode{}, false
 	}
-	operation := AstNode{}
+	operation := task.AstNode{}
 	err = json.Unmarshal(TaskData, &operation)
 	if err != nil {
 		log.Printf("Unmarshal error %v on data %v", err, TaskData)
-		return AstNode{}, false
+		return task.AstNode{}, false
 	}
 	log.Printf("Got new operation %+v", operation)
 	return operation, true
 }
 
-func TaskChecker(choper chan<- AstNode, chstop <-chan interface{}) {
+func TaskChecker(choper chan<- task.AstNode, chstop <-chan interface{}) {
 	tick := time.NewTicker(time.Duration(config.poll_interval) * time.Second)
 	go func() {
 		for {
@@ -215,7 +218,7 @@ func main() {
 	log.Printf("Agent started with agent_id=%v", agent_id)
 	log.Printf("Config %+v", config)
 
-	choper := make(chan AstNode)
+	choper := make(chan task.AstNode)
 	chstop := make(chan interface{})
 	wg := new(sync.WaitGroup)
 
