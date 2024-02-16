@@ -153,7 +153,8 @@ func CalculateExpression(c *gin.Context) {
 	}
 
 	t := task.NewTask(extexpr.Expr, extexpr.Ext_id)
-	task.Tasks = append(task.Tasks, t)
+	//task.Tasks = append(task.Tasks, t)
+	task.Tasks[t.Task_id] = t
 	if frombrowser {
 		http.Redirect(c.Writer, c.Request, "/tasks", http.StatusSeeOther)
 	} else {

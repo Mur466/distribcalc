@@ -49,7 +49,8 @@ type Task struct {
 	DateFinished time.Time
 }
 
-var Tasks []*Task = make([]*Task, 0)
+//var Tasks []*Task = make([]*Task, 0)
+var Tasks map[int]*Task = make(map[int]*Task, 0)
 var Config map[string]string = make(map[string]string)
 
 var task_count int

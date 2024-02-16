@@ -2,10 +2,8 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -15,7 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Mur466/distribcalc/internal/agent"
 	"github.com/Mur466/distribcalc/internal/task"
+	"github.com/Mur466/distribcalc/internal/utils"
 
 )
 
@@ -44,22 +44,9 @@ func NewConfig() Config {
 	}
 }
 
-func pseudo_uuid() (uuid string) {
-
-	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
-	}
-
-	uuid = fmt.Sprintf("%04x-%04x-%04x-%04x-%04x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-
-	return
-}
 
 func GetAgentId() string {
-	return pseudo_uuid()
+	return utils.Pseudo_uuid()
 }
 
 func PostJsonToUrl(url string, jsonData []byte) (StatusCode int, body []byte, err error) {
@@ -86,23 +73,7 @@ func PostJsonToUrl(url string, jsonData []byte) (StatusCode int, body []byte, er
 
 }
 
-/*
-type AstNode struct {
-	Astnode_id int `json:"astnode_id"`
-	Task_id    int `json:"task_id"`
-	//    parent_astnode_id int
-	Operand1       int    `json:"operand1"`
-	Operand2       int    `json:"operand2"`
-	Operator       string `json:"operator"`
-	Operator_delay int    `json:"operator_delay"`
-	//    status string
-	//    date_ins time.Time
-	//    - date_start
-	//    - date_done
-	//    - agent_id
-	Result int64 `json:"result"`
-}
-*/
+
 func Worker(choper <-chan task.AstNode, wg *sync.WaitGroup) {
 	defer wg.Done()
 	url := server_url + "/take-operation-result"
@@ -143,14 +114,21 @@ func Worker(choper <-chan task.AstNode, wg *sync.WaitGroup) {
 
 func GetOperation(status string) (task.AstNode, bool) {
 	url := server_url + "/give-me-operation"
-
+	Json, err := json.Marshal(agent.Agent{
+		AgentId: agent_id,
+		Status: status,
+		TotalProcs: config.max_workers,
+		IdleProcs: int(free_workers),		
+	})
+	/*	
 	Json := fmt.Sprintf(`{
 		"agent_id": "%v",
 		"status": "%v",
 		"total_procs": %v,
 		"idle_procs": %v
     }`, agent_id, status, config.max_workers, free_workers)
-	StatusCode, TaskData, err := PostJsonToUrl(url, []byte(Json))
+	*/
+	StatusCode, TaskData, err := PostJsonToUrl(url, Json)
 	if err != nil {
 		log.Printf("Request on %v returned error %v", url, err.Error())
 		return task.AstNode{}, false
