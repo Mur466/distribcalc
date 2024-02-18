@@ -47,6 +47,21 @@ createdb -h localhost -p 5432 -U postgres distribcalc
 psql -f dbmigrate.sql -U postgres -h localhost -p 5432 -d distribcalc
 ```
 
+3. Получение необходимых пакетов go
+
+Выполняем в папке distribcalc
+```
+go mod download
+```
+После этого все необходимые пакеты должны быть установлены
+
+На всякий случай список команд для получения пакетов вручную
+```
+go get github.com/gin-gonic/gin
+go get -u go.uber.org/zap
+go get github.com/jackc/pgx/v5/pgxpool
+go get github.com/johncgriffin/overflow
+```
 
 
 Запуск
