@@ -5,9 +5,9 @@
 -------
 
 - дерево выражения (astnode)
-    - astnode_id
+    - node_id
     - task_id
-    - parent_astnode_id
+    - parent_node_id
     - operand1
     - operand2
     - operator
@@ -71,7 +71,7 @@ API
 - /list-agents
     выводит список агентов со всеми полями
 
-- /give-me-astnode
+- /give-me-operaton
     агент получает AST-узел  
     1. в таблице astnode ищем самое старое задание в статусе ready
     2. возвращаем его в ответе
@@ -130,7 +130,7 @@ API
 1. Проверяет, что кол-во свбодных горутин больше 0
 2. Уменьшает счетчик свободных горутин
 3. Запускает горутину
-    1. Она обращается к storage/give-me-astnode
+    1. Она обращается к storage/give-me-operaton
     2. Вычисляет результат
     3. Делает задержку
     4. Вызывает storage/take-oper-result

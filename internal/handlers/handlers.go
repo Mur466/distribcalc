@@ -9,10 +9,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/Mur466/distribcalc/internal/task"
 	"github.com/Mur466/distribcalc/internal/agent"
+	"github.com/Mur466/distribcalc/internal/cfg"
+	l "github.com/Mur466/distribcalc/internal/logger"
+	"github.com/Mur466/distribcalc/internal/task"
 	"github.com/Mur466/distribcalc/internal/utils"
-    l "github.com/Mur466/distribcalc/internal/logger"
 )
 
 func GetAgents(c *gin.Context) {
@@ -27,13 +28,15 @@ func GetAgents(c *gin.Context) {
 }
 
 func GetTasks(c *gin.Context) {
-
+	// Могли бы показывать сразу task.Task, но хочется порядок новые вверху и ограничение на странице
+	// поэтому берем из БД
+	tasks := task.ListTasks(cfg.Cfg.RowsOnPage, 0)
 	c.HTML(
 		200,
 		"tasks.html",
 		gin.H{
 			"title":          "Tasks",
-			"Tasks":          task.Tasks,
+			"Tasks":          tasks,
 			"NewRandomValue": utils.Pseudo_uuid(),
 		},
 	)
@@ -45,29 +48,31 @@ func GetConfig(c *gin.Context) {
 		"config.html",
 		gin.H{
 			"title":  "Config",
-			"Config": task.Config,
+			"Config": cfg.Cfg,
 		},
 	)
 }
-func ValidateDelay(v string, dflt string) string {
+func ValidateDelay(v string, dflt int) int {
 	i, err := strconv.Atoi(v)
 	if v != "" && err == nil && i >= 0 {
-		return v
+		return i
 	}
 	return dflt
 }
 func SetConfig(c *gin.Context) {
-	task.Config["DelayForAdd"] = ValidateDelay(c.PostForm("DelayForAdd"), task.Config["DelayForAdd"])
-	task.Config["DelayForSub"] = ValidateDelay(c.PostForm("DelayForSub"), task.Config["DelayForSub"])
-	task.Config["DelayForMul"] = ValidateDelay(c.PostForm("DelayForMul"), task.Config["DelayForMul"])
-	task.Config["DelayForDiv"] = ValidateDelay(c.PostForm("DelayForDiv"), task.Config["DelayForDiv"])
+	cfg.Cfg.DelayForAdd = ValidateDelay(c.PostForm("DelayForAdd"), cfg.Cfg.DelayForAdd)
+	cfg.Cfg.DelayForSub = ValidateDelay(c.PostForm("DelayForSub"), cfg.Cfg.DelayForSub)
+	cfg.Cfg.DelayForMul = ValidateDelay(c.PostForm("DelayForMul"), cfg.Cfg.DelayForMul)
+	cfg.Cfg.DelayForDiv = ValidateDelay(c.PostForm("DelayForDiv"), cfg.Cfg.DelayForDiv)
+	cfg.RecalcAgentTimeout()
+	cfg.Cfg.RowsOnPage = ValidateDelay(c.PostForm("RowsOnPage"), cfg.Cfg.RowsOnPage)
 	http.Redirect(c.Writer, c.Request, "/config", http.StatusSeeOther)
 }
 
 func GiveMeOperation(c *gin.Context) {
 	var thisagent agent.Agent
 	if err := c.BindJSON(&thisagent); err != nil {
-		fmt.Printf("Error JSON %+v", err)
+		l.SLogger.Errorf("Error JSON %+v", err)
 		return
 	}
 	a, found := agent.Agents[thisagent.AgentId]
@@ -82,13 +87,13 @@ func GiveMeOperation(c *gin.Context) {
 	agent.Agents[thisagent.AgentId] = thisagent
 
 	if thisagent.Status == "busy" {
-		fmt.Printf("agent busy %+v", thisagent)
+		l.SLogger.Infof("Agent busy %+v", thisagent)
 	} else {
 		for _, t := range task.Tasks {
 			if n, ok := t.GetWaitingNodeAndSetProcess(thisagent.AgentId); ok {
-				node := task.AstNode{Astnode_id: n.Astnode_id, Task_id: n.Task_id, Operand1: n.Operand1, Operand2: n.Operand2, Operator: n.Operator, Operator_delay: n.Operator_delay}
+				node := task.Node{Node_id: n.Node_id, Task_id: n.Task_id, Operand1: n.Operand1, Operand2: n.Operand2, Operator: n.Operator, Operator_delay: n.Operator_delay}
 				c.IndentedJSON(http.StatusOK, node)
-				fmt.Printf("agent %v received operation %+v", thisagent.AgentId, node)
+				l.SLogger.Infof("agent %v received operation %+v", thisagent.AgentId, node)
 				// дали агенту операцию, значит у него стало на 1 свободный процесс меньше
 				thisagent.IdleProcs--
 				agent.Agents[thisagent.AgentId] = thisagent
@@ -96,35 +101,46 @@ func GiveMeOperation(c *gin.Context) {
 			}
 		}
 		// ничего нет
-		c.IndentedJSON(http.StatusNoContent, task.AstNode{})
+		c.IndentedJSON(http.StatusNoContent, task.Node{})
 
 	}
 
 }
 
 func TakeOperationResult(c *gin.Context) {
-	var resnode task.AstNode
+	var resnode task.Node
 	if err := c.BindJSON(&resnode); err != nil {
 		l.SLogger.Errorf("Error JSON %+v", err)
 		return
 	}
 	l.Logger.Info("Got result",
-		zap.Int("TaskId",resnode.Task_id),
-		zap.Int("NodeId",resnode.Astnode_id),
-		zap.String("Status",resnode.Status),
-	 	zap.String("expr", fmt.Sprintf("%v%v%v=%v",resnode.Operand1, resnode.Operator, resnode.Operand2, resnode.Result)))
-
-/*
-	l.SLogger.Info("Got result",
-		"TaskId",resnode.Task_id,
-		"NodeId",resnode.Astnode_id,
-		"Status",resnode.Status,
-	 	"expr", fmt.Sprintf("%v%v%v=%v",resnode.Operand1, resnode.Operator, resnode.Operand2, resnode.Result))
-*/	
+		zap.Int("TaskId", resnode.Task_id),
+		zap.Int("NodeId", resnode.Node_id),
+		zap.String("Status", resnode.Status),
+		zap.String("expr", fmt.Sprintf("%v%v%v=%v", resnode.Operand1, resnode.Operator, resnode.Operand2, resnode.Result)))
 
 	for _, t := range task.Tasks {
 		if t.Task_id == resnode.Task_id {
-			t.SetNodeStatus(resnode.Astnode_id, "done", task.NodeStatusInfo{Result: resnode.Result})
+			if t.TreeSlice[resnode.Node_id].Agent_id == resnode.Agent_id {
+				func() {
+					t.Mx.Lock()
+					defer t.Mx.Unlock()
+					// тут мы 100% одни
+					t.SetNodeStatus(resnode.Node_id, resnode.Status, task.NodeStatusInfo{Result: resnode.Result, Message: resnode.Message})
+				}()
+			} else {
+				// получили результат не от того агента, который забрал операцию
+				// просто проигнорируем, вдруг получим еще от кого надо
+				// если не получим, то потом по таймауту повторно подадим
+				l.Logger.Error("Expected result from one agent, got from another",
+					zap.Int("TaskId", resnode.Task_id),
+					zap.Int("NodeId", resnode.Node_id),
+					zap.String("Expected agent_id", t.TreeSlice[resnode.Node_id].Agent_id),
+					zap.String("Actual agent_id", resnode.Agent_id),
+					zap.String("Status", resnode.Status),
+					zap.String("expr", fmt.Sprintf("%v%v%v=%v", resnode.Operand1, resnode.Operator, resnode.Operand2, resnode.Result)),
+				)
+			}
 		}
 	}
 
@@ -147,7 +163,8 @@ func CalculateExpression(c *gin.Context) {
 	} else {
 		// пытаемся через json
 		if err := c.BindJSON(&extexpr); err == nil {
-			fmt.Printf("Error JSON %+v", err)
+			l.Logger.Info("Error JSON",
+				zap.String("JSON", err.Error()))
 			return
 		}
 	}
@@ -159,7 +176,7 @@ func CalculateExpression(c *gin.Context) {
 		http.Redirect(c.Writer, c.Request, "/tasks", http.StatusSeeOther)
 	} else {
 		// ответим на json
-		if t.Status == "failed" {
+		if t.Status == "error" {
 			c.String(http.StatusBadRequest, fmt.Sprintf("Expression failed: %v", t.Message))
 		} else {
 			c.String(http.StatusOK, fmt.Sprintf("Expression received, task_id: %v", t.Task_id))

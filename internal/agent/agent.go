@@ -1,23 +1,14 @@
 package agent
 
-import "time"
-/*
-type AstNode struct {
-	Astnode_id        int `json:"astnode_id"`
-	Task_id           int `json:"task_id"`
-	parent_astnode_id int
-	Operand1          int    `json:"operand1"`
-	Operand2          int    `json:"operand2"`
-	Operator          string `json:"operator"`
-	Operator_delay    int    `json:"operator_delay"`
-	status            string
-	date_ins          time.Time
-	date_start        time.Time
-	date_done         time.Time
-	agent_id          int
-	Result            int64 `json:"result"`
-}
-*/
+import (
+	"time"
+
+	"github.com/Mur466/distribcalc/internal/cfg"
+	l "github.com/Mur466/distribcalc/internal/logger"
+	"github.com/Mur466/distribcalc/internal/task"
+	"go.uber.org/zap"
+)	
+
 type Agent struct {
 	AgentId    string `json:"agent_id"`
 	Status     string `json:"status"`
@@ -28,3 +19,47 @@ type Agent struct {
 }
 
 var Agents map[string]Agent = make(map[string]Agent)
+
+
+// Удаляем пропавших агентов
+func CleanLostAgents() {
+	timeout := time.Second * time.Duration(cfg.Cfg.AgentLostTimeout)
+	for _, a := range Agents{
+		if time.Since(a.LastSeen) > timeout {
+			// давно не видели, забудем про него
+			l.Logger.Info("Agent lost",
+				zap.String("agent_id", a.AgentId),
+				zap.Time("Last seen", a.LastSeen),
+				zap.Int("timeout sec",cfg.Cfg.AgentLostTimeout),
+			)				
+			// но вначале передадим его задание другим
+			for _, t := range task.Tasks {
+				if t.Status == "in progress" {
+					for _, n := range t.TreeSlice {
+						if n.Status == "in progress" &&
+							n.Agent_id == a.AgentId {
+							t.SetNodeStatus(n.Node_id, "ready", task.NodeStatusInfo{})
+						}
+					}
+				}
+			}
+			// нет больше такого агента 
+			delete(Agents,a.AgentId)
+		}
+	}	
+}
+
+func InitAgents() {
+	tick := time.NewTicker(time.Second * time.Duration(cfg.Cfg.AgentLostTimeout))
+	go func() {
+		for {
+			select {
+			case <-tick.C:
+				// таймер прозвенел
+				CleanLostAgents()
+			}
+		}
+
+	}()
+
+}

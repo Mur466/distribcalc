@@ -13,10 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/JohnCGriffin/overflow"
+
 	"github.com/Mur466/distribcalc/internal/agent"
 	"github.com/Mur466/distribcalc/internal/task"
 	"github.com/Mur466/distribcalc/internal/utils"
-
 )
 
 type Config struct {
@@ -43,7 +44,6 @@ func NewConfig() Config {
 		http_timeout:  *phttp_timeout,
 	}
 }
-
 
 func GetAgentId() string {
 	return utils.Pseudo_uuid()
@@ -73,8 +73,7 @@ func PostJsonToUrl(url string, jsonData []byte) (StatusCode int, body []byte, er
 
 }
 
-
-func Worker(choper <-chan task.AstNode, wg *sync.WaitGroup) {
+func Worker(choper <-chan task.Node, wg *sync.WaitGroup) {
 	defer wg.Done()
 	url := server_url + "/take-operation-result"
 
@@ -84,26 +83,46 @@ func Worker(choper <-chan task.AstNode, wg *sync.WaitGroup) {
 			defer atomic.AddInt32(&free_workers, 1)
 			// вычисляем
 			log.Printf("Operation calc start %+v", operation)
+			var no_overfl bool = true
 			switch {
 			case operation.Operator == "+":
-				operation.Result = int64(operation.Operand1) + int64(operation.Operand2)
+				//operation.Result = int64(operation.Operand1) + int64(operation.Operand2)
+				operation.Result, no_overfl = overflow.Add64(int64(operation.Operand1), int64(operation.Operand2))
 			case operation.Operator == "-":
-				operation.Result = int64(operation.Operand1) - int64(operation.Operand2)
+				//operation.Result = int64(operation.Operand1) - int64(operation.Operand2)
+				operation.Result, no_overfl = overflow.Sub64(int64(operation.Operand1), int64(operation.Operand2))
 			case operation.Operator == "*":
-				operation.Result = int64(operation.Operand1) * int64(operation.Operand2)
+				//operation.Result = int64(operation.Operand1) * int64(operation.Operand2)
+				operation.Result, no_overfl = overflow.Mul64(int64(operation.Operand1), int64(operation.Operand2))
 			case operation.Operator == "/":
-				operation.Result = int64(operation.Operand1) / int64(operation.Operand2)
+				if operation.Operand2 == 0 {
+					operation.Status = "error"
+					operation.Message = "Division by zero"
+				} else {
+					operation.Result = int64(operation.Operand1) / int64(operation.Operand2)
+					operation.Result, no_overfl = overflow.Div64(int64(operation.Operand1), int64(operation.Operand2))
+				}
 			default:
+				operation.Status = "error"
+				operation.Message = "Incorrect operator [" + operation.Operator + "]"
 				log.Printf("Incorrect operator [%v] for operation %+v", operation.Operator, operation)
 			}
-			// изображаем бурную деятельность
-			time.Sleep(time.Duration(operation.Operator_delay) * time.Second)
+			if !no_overfl {
+				operation.Status = "error"
+				operation.Message = "Overflow"
+			}
+			if operation.Status != "error" {
+				// изображаем бурную деятельность
+				time.Sleep(time.Duration(operation.Operator_delay) * time.Second)
+				operation.Status = "done"
+			}
+			operation.Agent_id = agent_id
 			// формируем результат
 			Json, err := json.Marshal(operation)
 			if err != nil {
 				log.Printf("Error marshalling to JSON task %+v", operation)
 			}
-			log.Printf("Operation calc finish %+v", operation)
+			log.Printf("Operation calc finish %+v status", operation)
 			// отправляем результат
 			if _, _, err := PostJsonToUrl(url, Json); err != nil {
 				log.Printf("Request on %v returned error %v", url, err.Error())
@@ -112,68 +131,70 @@ func Worker(choper <-chan task.AstNode, wg *sync.WaitGroup) {
 	}
 }
 
-func GetOperation(status string) (task.AstNode, bool) {
+func GetOperation(status string) (task.Node, bool) {
 	url := server_url + "/give-me-operation"
 	Json, err := json.Marshal(agent.Agent{
-		AgentId: agent_id,
-		Status: status,
+		AgentId:    agent_id,
+		Status:     status,
 		TotalProcs: config.max_workers,
-		IdleProcs: int(free_workers),		
+		IdleProcs:  int(free_workers),
 	})
-	/*	
-	Json := fmt.Sprintf(`{
-		"agent_id": "%v",
-		"status": "%v",
-		"total_procs": %v,
-		"idle_procs": %v
-    }`, agent_id, status, config.max_workers, free_workers)
-	*/
+	if err != nil {
+		log.Printf("Error marshalling to JSON task agent status")
+		return task.Node{}, false
+	}
+
 	StatusCode, TaskData, err := PostJsonToUrl(url, Json)
 	if err != nil {
 		log.Printf("Request on %v returned error %v", url, err.Error())
-		return task.AstNode{}, false
+		return task.Node{}, false
 	}
 	if status == "busy" {
 		// выполнили "пульс", а операцию не собирались брать, поэтому можем дальше не читать
-		return task.AstNode{}, false
+		return task.Node{}, false
 	}
 	if StatusCode != http.StatusOK {
 		// задания не получили
-		return task.AstNode{}, false
+		return task.Node{}, false
 	}
-	operation := task.AstNode{}
+	operation := task.Node{}
 	err = json.Unmarshal(TaskData, &operation)
 	if err != nil {
 		log.Printf("Unmarshal error %v on data %v", err, TaskData)
-		return task.AstNode{}, false
+		return task.Node{}, false
 	}
 	log.Printf("Got new operation %+v", operation)
 	return operation, true
 }
 
-func TaskChecker(choper chan<- task.AstNode, chstop <-chan interface{}) {
+func DinDon(choper chan<- task.Node) {
+	if free_workers > 0 {
+		// набираем до упора
+		for free_workers > 0 {
+			if oper, ok := GetOperation("ready"); ok {
+				// уменьшаем счетчик свободных
+				atomic.AddInt32(&free_workers, -1)
+				// тут отправить операцию воркеру
+				choper <- oper
+			} else {
+				// не дали операцию, выходим из цикла
+				break
+			}
+		}
+	} else {
+		// нет свободных, просто сделаем "пульс" и скажем серверу что заняты
+		GetOperation("busy")
+	}
+}
+
+func TaskChecker(choper chan<- task.Node, chstop <-chan interface{}) {
 	tick := time.NewTicker(time.Duration(config.poll_interval) * time.Second)
 	go func() {
 		for {
 			select {
 			case <-tick.C:
-				if free_workers > 0 {
-					// набираем до упора
-					for free_workers > 0 {
-						if oper, ok := GetOperation("ready"); ok {
-							// уменьшаем счетчик свободных
-							atomic.AddInt32(&free_workers, -1)
-							// тут отправить операцию воркеру
-							choper <- oper
-						} else {
-							// не дали операцию, выходим из цикла
-							break
-						}
-					}
-				} else {
-					// нет свободных, просто сделаем "пульс" и скажем серверу что заняты
-					GetOperation("busy")
-				}
+				// таймер прозвенел
+				DinDon(choper)
 			case <-chstop:
 				tick.Stop()
 				close(choper)
@@ -182,7 +203,8 @@ func TaskChecker(choper chan<- task.AstNode, chstop <-chan interface{}) {
 		}
 
 	}()
-
+	// первый раз не ждем таймера
+	DinDon(choper)
 }
 
 var config = NewConfig()
@@ -196,7 +218,7 @@ func main() {
 	log.Printf("Agent started with agent_id=%v", agent_id)
 	log.Printf("Config %+v", config)
 
-	choper := make(chan task.AstNode)
+	choper := make(chan task.Node)
 	chstop := make(chan interface{})
 	wg := new(sync.WaitGroup)
 

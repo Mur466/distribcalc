@@ -1,19 +1,30 @@
 package main
 
 import (
-	"github.com/Mur466/distribcalc/internal/task"
-	"github.com/Mur466/distribcalc/internal/routers"
+	"strconv"
+
+	"github.com/Mur466/distribcalc/internal/agent"
+	"github.com/Mur466/distribcalc/internal/cfg"
+	"github.com/Mur466/distribcalc/internal/db"
 	"github.com/Mur466/distribcalc/internal/logger"
+	"github.com/Mur466/distribcalc/internal/routers"
+	"github.com/Mur466/distribcalc/internal/task"
 )
 
-
-
 func main() {
+
+	cfg.InitConfig()
 	logger.InitLogger()
 	defer logger.Logger.Sync()
-	task.InitConfig()
+
+	db.InitDb()
+	defer db.ShutdownDb()
+	task.InitTasks()
+	
+	agent.InitAgents()
+
 	router := routers.InitRouters()
-	router.Run("localhost:8080")
+	router.Run("localhost:" + strconv.Itoa(cfg.Cfg.HttpPort))
 }
 
 /*
