@@ -330,7 +330,7 @@ func (t *Task) SetNodeStatus(node_id int, status string, info NodeStatusInfo) {
 		// ошибка в операци, отменяем задание и все ожидающие ноды
 		t.SetStatus("error", TaskStatusInfo{Message: info.Message})
 		for _, n := range t.TreeSlice {
-			if n.Status == "waiting" {
+			if n.Status == "waiting" || n.Status == "ready" {
 				t.SetNodeStatus(n.Node_id, "error", NodeStatusInfo{Message: "Some other node has error"})
 			}
 		}
