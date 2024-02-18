@@ -13,16 +13,18 @@
       <img src="https://w7.pngwing.com/pngs/107/706/png-transparent-computer-icons-calculator-calculation-mathe-electronics-text-sign.png" alt="twbs" width="32" height="32" class="rounded-circle flex-shrink-0">
       <div class="d-flex gap-2 w-100 justify-content-between">
         <div>
-          <h6 class="mb-0">{{.Expr}}</h6>
-          <p class="mb-0 opacity-75">{{.Message}} </p>
-          <p class="mb-0 opacity-75">Task id: "{{.Task_id}}" external id "{{.Ext_id}}"</p>
-          <p class="mb-0 opacity-75">Created  {{.DateCreated}}</p>
-          <p class="mb-0 opacity-75">Finished  {{.DateFinished}}</p>
+          <h5 class="mb-0">{{.Expr}}</h5>
+          <p class="mb-0 opacity-75">external id:<b> {{.Ext_id}}</b></p>
+          <h6 class="mb-0">{{.Message}}</h6>
         </div>
         <div>
-          <h6 class="opacity-50 text-nowrap">{{.Status}}</h6>
-          <h6 class="opacity-50 text-nowrap">{{.Result}}</h6>
-          
+          <p class="mb-0 opacity-75">Task id: <b>{{.Task_id}}</b></p>
+          <p class="mb-0 opacity-75">Created  <b>{{.DateCreatedFmt}}</b></p>
+          <p class="mb-0 opacity-75">Finished <b>{{.DateFinishedFmt}}</b></p>
+        </div>
+        <div>
+          <h5 class="text-nowrap">{{.Status}}</h6>
+          <h5 class="text-nowrap">{{.Result}}</h6>          
         </div>
       </div>
     </a>

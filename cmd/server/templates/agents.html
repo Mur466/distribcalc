@@ -11,12 +11,12 @@
       <img src="https://w7.pngwing.com/pngs/107/706/png-transparent-computer-icons-calculator-calculation-mathe-electronics-text-sign.png" alt="twbs" width="32" height="32" class="rounded-circle flex-shrink-0">
       <div class="d-flex gap-2 w-100 justify-content-between">
         <div>
-          <h6 class="mb-0">{{.AgentId}} </h6>
-          <p class="mb-0 opacity-75">Workers total: {{.TotalProcs}}, idle {{.IdleProcs}}</p>
-          <p class="mb-0 opacity-75">Started  {{.FirstSeen}}</p>
-          <p class="mb-0 opacity-75">Last seen  {{.LastSeen}}</p>
+          <h5 class="mb-0">{{.AgentId}} </h5>
+          <p class="mb-0 opacity-75">Workers total: <b>{{.TotalProcs}}</b>, idle <b>{{.IdleProcs}}</b></p>
+          <p class="mb-0 opacity-75">Started   <b>{{ .FirstSeen }}</b></p>
+          <p class="mb-0 opacity-75">Last seen <b>{{ .LastSeen }}</b></p>
         </div>
-        <small class="opacity-50 text-nowrap">{{.Status}}</small>
+        <h5 class="text-nowrap">{{.Status}}</h5>
       </div>
     </a>
     {{end}}

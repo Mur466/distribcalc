@@ -151,6 +151,16 @@ type ExtExpr struct {
 	Expr   string `json:"expr"`
 }
 
+
+type ExprResult struct {
+	Ext_id  string `json:"ext_id"`
+	Expr    string `json:"expr"`
+	Task_id int    `json:"task_id"`
+	Status  string `json:"status"`
+	Result  int64  `json:"result"`
+	Message string `json:"message"`
+}
+
 func CalculateExpression(c *gin.Context) {
 	var extexpr ExtExpr
 	frombrowser := false
@@ -162,7 +172,7 @@ func CalculateExpression(c *gin.Context) {
 		frombrowser = true
 	} else {
 		// пытаемся через json
-		if err := c.BindJSON(&extexpr); err == nil {
+		if err := c.BindJSON(&extexpr); err != nil {
 			l.Logger.Info("Error JSON",
 				zap.String("JSON", err.Error()))
 			return
@@ -170,17 +180,22 @@ func CalculateExpression(c *gin.Context) {
 	}
 
 	t := task.NewTask(extexpr.Expr, extexpr.Ext_id)
-	//task.Tasks = append(task.Tasks, t)
 	task.Tasks[t.Task_id] = t
 	if frombrowser {
 		http.Redirect(c.Writer, c.Request, "/tasks", http.StatusSeeOther)
 	} else {
 		// ответим на json
-		if t.Status == "error" {
-			c.String(http.StatusBadRequest, fmt.Sprintf("Expression failed: %v", t.Message))
-		} else {
-			c.String(http.StatusOK, fmt.Sprintf("Expression received, task_id: %v", t.Task_id))
+		res := ExprResult{
+			Ext_id:  t.Ext_id,
+			Expr:    t.Expr,
+			Task_id: t.Task_id,
+			Status:  t.Status,
+			Result:  t.Result,
+			Message: t.Message,
 		}
+		c.IndentedJSON(http.StatusOK, res)
 	}
 
 }
+
+

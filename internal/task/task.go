@@ -53,19 +53,17 @@ type Task struct {
 	DateFinished time.Time
 }
 
-// var Tasks []*Task = make([]*Task, 0)
 var Tasks map[int]*Task = make(map[int]*Task, 0)
 
-//var task_count int
-
 func NewTask(expr string, ext_id string) *Task {
-	//task_count++
-	t := &Task{Task_id: -1, Expr: expr, Ext_id: ext_id, TreeSlice: make([]*Node, 0), DateCreated: time.Now()}
-	if CheckUnique(t) {
-		t.SetStatus("parsing", TaskStatusInfo{})
-	} else {
-		t.SetStatus("error", TaskStatusInfo{Message: fmt.Sprintf("Expression with ext_id %s already exists",t.Ext_id)})
+	double := CheckUnique(ext_id)
+	if double != nil {
+		return double
 	}
+
+	t := &Task{Task_id: -1, Expr: expr, Ext_id: ext_id, TreeSlice: make([]*Node, 0), DateCreated: time.Now()}
+	t.SetStatus("parsing", TaskStatusInfo{})
+
 	root := &Node{Task_id: t.Task_id}
 	t.Add(-1, root)
 
@@ -85,18 +83,20 @@ func NewTask(expr string, ext_id string) *Task {
 	return t
 }
 
-func CheckUnique(t *Task) bool {
-	if t.Ext_id == "" {
+// Проверяем, что задание с таким ext_id уже есть
+// Если находим, вернем его
+func CheckUnique(Ext_id string) *Task {
+	if Ext_id == "" {
 		// если ключ не указали, не проверяем
-		return true
+		return nil
 	}
 
-	for _, v := range Tasks {
-		if v.Ext_id == t.Ext_id {
-			return false
+	for _, t := range Tasks {
+		if t.Ext_id == Ext_id {
+			return t
 		}
 	}
-	return true
+	return nil
 }
 
 func (t *Task) buildtree(parsedtree ast.Expr, parent *Node) error {
@@ -242,7 +242,7 @@ func (t *Task) SetStatus(status string, info TaskStatusInfo) {
 func (t *Task) GetWaitingNodeAndSetProcess(agent_id string) (*Node, bool) {
 	for _, n := range t.TreeSlice {
 		ret := false
-		func () {
+		func() {
 			t.Mx.Lock()
 			defer t.Mx.Unlock()
 			// тут мы 100% одни
@@ -338,7 +338,6 @@ func (t *Task) SetNodeStatus(node_id int, status string, info NodeStatusInfo) {
 
 }
 
-
 // Получить задержку по оператору из конфига
 func GetOperatorDelay(operator string) int {
 	switch operator {
@@ -354,4 +353,18 @@ func GetOperatorDelay(operator string) int {
 		return 0 // не бывает
 	}
 
+}
+
+func (t *Task) DateCreatedFmt() string {
+	if t.DateCreated.IsZero(){
+		return "N/A"
+	}
+	return  t.DateCreated.Format("2006/01/02 15:04:05")
+}
+
+func (t *Task) DateFinishedFmt () string {
+	if t.DateFinished.IsZero(){
+		return "N/A"
+	}
+	return  t.DateFinished.Format("2006/01/02 15:04:05")
 }
