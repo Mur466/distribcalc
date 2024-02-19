@@ -39,10 +39,11 @@ localhost на имя вашего хоста, 5432 на номер нужног
 ```
 createdb -h localhost -p 5432 -U postgres distribcalc
 ```
+
 После запуска в ответ на запрос вводим вышеуказанный пароль 
 
-Создаем таблицы запуском скрипта \distribcalc\database\dbcreate.cmd 
-Запускайте команду ниже из папки \distribcalc\database или укажите полный путь к файлу dbcreate.cmd 
+Создаем таблицы запуском sql-скрипта
+Запускайте команду ниже из папки \distribcalc\database или укажите полный путь к файлу \distribcalc\database\dbmigrate.sql
 ```
 psql -f dbmigrate.sql -U postgres -h localhost -p 5432 -d distribcalc
 ```
