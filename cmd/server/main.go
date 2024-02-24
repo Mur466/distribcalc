@@ -20,11 +20,11 @@ func main() {
 	db.InitDb()
 	defer db.ShutdownDb()
 	task.InitTasks()
-	
+
 	agent.InitAgents()
 
 	router := routers.InitRouters()
-	router.Run("localhost:" + strconv.Itoa(cfg.Cfg.HttpPort))
+	router.Run(":" + strconv.Itoa(cfg.Cfg.HttpPort))
 }
 
 /*

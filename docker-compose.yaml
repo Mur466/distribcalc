@@ -1,0 +1,61 @@
+version: "3.8"
+services:
+  server:
+    container_name: distribcalc.server
+    build: 
+        context: .
+        dockerfile: server.dockerfile
+    restart: unless-stopped
+    depends_on:
+      distribcalc.storage:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    develop:
+      watch:
+        - path: ./*.go
+          action: rebuild
+        - path: ./cmd/server/templates 
+          target: /app/cmd/server/templates 
+          action: sync
+
+  agent1:
+    container_name: distribcalc.agent1
+    build: 
+        context: .
+        dockerfile: agent.dockerfile
+    restart: unless-stopped
+    depends_on:
+      server:
+         condition: service_started
+
+  agent2:
+    container_name: distribcalc.agent2
+    build: 
+        context: .
+        dockerfile: agent.dockerfile
+    restart: unless-stopped
+    depends_on:
+      server:
+         condition: service_started
+  
+  distribcalc.storage:
+    container_name: distribcalc.storage
+    image: postgres:16.2
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: distribcalc
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "4321:5432"  # in case you have local pg, to avoid conflict we set our pg exposed port to 4321
+    volumes:
+      - type: bind
+        source: ./database/dbmigrate.sql
+        target: /docker-entrypoint-initdb.d/dbmigrate.sql # postgres runs this script on empty database
+

@@ -42,8 +42,10 @@ func (t *Task) SaveTask() {
 		return
 	}
 
+	need_update := true
 	if t.Task_id < 0 {
-		// новая нода
+		// новое выражение
+		need_update = false
 		err := db.Conn.QueryRow(context.Background(), `
 			INSERT INTO tasks (data) VALUES ($1) returning task_id;
 			`, data).Scan(&t.Task_id)
@@ -55,7 +57,27 @@ func (t *Task) SaveTask() {
 			)
 			return
 		}
-	} else {
+		if len(t.TreeSlice) > 0 {
+			//выражение еще не было сохранено, но у него есть узлы
+			// такое возможно, если при создании выражения БД была недоступна
+			// теперь мы получили task_id из новой записи в БД
+			// поправим task_id у нод, ведь на момент их создания task_id был неизвестен (-1)
+			for _, n := range t.TreeSlice {
+				n.Task_id = t.Task_id
+			}
+			// теперь надо обновить данные в  БД
+			need_update = true
+			data, err = json.Marshal(t)
+			if err != nil {
+				l.Logger.Error("Error on marshalling ",
+					zap.String("error", err.Error()),
+					zap.String("data", string(fmt.Sprintf("%+v", t))),
+				)
+				return
+			}
+		}
+	}
+	if need_update {
 		// обновляем
 		_, err := db.Conn.Exec(context.Background(), `
 			UPDATE tasks 
@@ -125,7 +147,7 @@ func InitTasks() {
 			)
 			continue // пропустим запись
 		}
-		
+
 		// добавляем или подменяем задание
 		Tasks[task_id] = &task
 	}
@@ -137,7 +159,7 @@ func InitTasks() {
 func ListTasks(limit int, offset int) []*Task {
 	strlimit := "ALL"
 	if limit > 0 {
-		strlimit = fmt.Sprintf("%d",limit)
+		strlimit = fmt.Sprintf("%d", limit)
 	}
 	var tasks []*Task = make([]*Task, 0)
 
@@ -178,6 +200,5 @@ func ListTasks(limit int, offset int) []*Task {
 		tasks = append(tasks, &task)
 	}
 	return tasks
-	
 
 }

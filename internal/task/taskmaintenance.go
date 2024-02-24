@@ -7,10 +7,15 @@ import (
 
 func UpLostTasks() {
 	for _, t := range Tasks {
-		if t.Status == "in progress" {
+		if t.Status == "in progress" || t.Status == "ready" {
 			// проверим нет ли зависших нод
 			// если сервер был выключен, агенты могли прислать результаты, которые мы не получили и уже не получим
 			for _, n := range t.TreeSlice {
+				if n.Task_id != t.Task_id {
+					// такое может быть, если при получении таска БД была недоступна.
+					// Тогда ноды создаются с task_id=-1
+					n.Task_id = t.Task_id
+				}
 				if n.Status == "in progress" {
 					timeout := n.Date_start.Add(time.Duration(n.Operator_delay*2) * time.Second)
 					if time.Now().After(timeout) {

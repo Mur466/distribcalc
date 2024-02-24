@@ -65,7 +65,7 @@ func NewTask(expr string, ext_id string) *Task {
 	t.SetStatus("parsing", TaskStatusInfo{})
 
 	root := &Node{Task_id: t.Task_id}
-	t.Add(-1, root)
+	t.AddNode(-1, root)
 
 	parsedtree, err := parser.ParseExpr(expr)
 	if err != nil {
@@ -106,6 +106,39 @@ func (t *Task) buildtree(parsedtree ast.Expr, parent *Node) error {
 		//сюда попасть не должны
 		l.Logger.Error("Unexpected switch case",
 			zap.String("n.type", "*ast.BasicLit"))
+	case *ast.UnaryExpr:
+		switch n.Op {
+		case token.ADD:
+			parent.Operator = "+"
+		case token.SUB:
+			parent.Operator = "-"
+		default:
+			return unsup(reflect.TypeOf(parsedtree))
+		}
+		parent.Operand1 = 0
+		parent.Child1_node_id = -1
+		parent.Operator_delay = GetOperatorDelay(parent.Operator)
+
+		// тут хитро - в дереве унарный оператор с выражением X,
+		// но мы присваиваем его ВТОРОЙ ноде, чтобы -1 превратить в 0 - 1
+		switch x := n.X.(type) {
+		case *ast.BasicLit:
+			// вычислять не нужно
+			if x.Kind != token.INT {
+				return unsup(x.Kind)
+			}
+			parent.Operand2, _ = strconv.Atoi(x.Value)
+			parent.Status = "ready"
+		default:
+			parent.Status = "waiting" // придется вычислять операнд
+			childX := t.AddNode(parent.Node_id, &Node{})
+			errX := t.buildtree(n.X, childX)
+			parent.Child2_node_id = childX.Node_id
+			if errX != nil {
+				return errX
+			}
+		}
+		return nil
 	case *ast.BinaryExpr:
 		//var operator string
 		switch n.Op {
@@ -121,7 +154,7 @@ func (t *Task) buildtree(parsedtree ast.Expr, parent *Node) error {
 			return unsup(n.Op)
 		}
 		parent.Operator_delay = GetOperatorDelay(parent.Operator)
-		parent.Status = "ready" // оптимистично считаем, что оба операнда будут на блечке
+		parent.Status = "ready" // оптимистично считаем, что оба операнда будут на блюдечке
 
 		switch x := n.X.(type) {
 		case *ast.BasicLit:
@@ -132,7 +165,7 @@ func (t *Task) buildtree(parsedtree ast.Expr, parent *Node) error {
 			parent.Operand1, _ = strconv.Atoi(x.Value)
 		default:
 			parent.Status = "waiting" // придется вычислять операнд
-			childX := t.Add(parent.Node_id, &Node{})
+			childX := t.AddNode(parent.Node_id, &Node{})
 			errX := t.buildtree(n.X, childX)
 			parent.Child1_node_id = childX.Node_id
 			if errX != nil {
@@ -149,7 +182,7 @@ func (t *Task) buildtree(parsedtree ast.Expr, parent *Node) error {
 			parent.Operand2, _ = strconv.Atoi(y.Value)
 		default:
 			parent.Status = "waiting" // придется вычислять операнд
-			childY := t.Add(parent.Node_id, &Node{})
+			childY := t.AddNode(parent.Node_id, &Node{})
 			errY := t.buildtree(n.Y, childY)
 			parent.Child2_node_id = childY.Node_id
 			if errY != nil {
@@ -168,6 +201,7 @@ func unsup(i interface{}) error {
 	return fmt.Errorf("%v unsupported", i)
 }
 
+/*
 func NewNode(operand1, operand2 int, operator, status string) *Node {
 	return &Node{
 		Node_id:        -1,
@@ -179,7 +213,8 @@ func NewNode(operand1, operand2 int, operator, status string) *Node {
 		Child2_node_id: -1,
 	}
 }
-func (t *Task) Add(parent_id int, node *Node) *Node {
+*/
+func (t *Task) AddNode(parent_id int, node *Node) *Node {
 	node.Node_id = len(t.TreeSlice)
 	node.Date_ins = time.Now()
 	node.Parent_node_id = parent_id
@@ -356,15 +391,15 @@ func GetOperatorDelay(operator string) int {
 }
 
 func (t *Task) DateCreatedFmt() string {
-	if t.DateCreated.IsZero(){
+	if t.DateCreated.IsZero() {
 		return "N/A"
 	}
-	return  t.DateCreated.Format("2006/01/02 15:04:05")
+	return t.DateCreated.Format("2006/01/02 15:04:05")
 }
 
-func (t *Task) DateFinishedFmt () string {
-	if t.DateFinished.IsZero(){
+func (t *Task) DateFinishedFmt() string {
+	if t.DateFinished.IsZero() {
 		return "N/A"
 	}
-	return  t.DateFinished.Format("2006/01/02 15:04:05")
+	return t.DateFinished.Format("2006/01/02 15:04:05")
 }
